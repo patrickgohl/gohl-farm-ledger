@@ -128,3 +128,19 @@ class FarmLedger:
             "date": date_str, "yard_id": int(yard_id), "hives": int(hives),
             "nuc_count": int(nucs), "losses": int(losses), "rating": int(rating)
         })
+        
+    def export_raw_db_bytes(self):
+        """Reads the raw sqlite database file from disk and returns a binary byte stream for downloading."""
+        import io
+        import os
+        
+        db_path = "farm_production.db"
+        
+        # Fallback check to ensure the file exists on the cloud server container
+        if os.path.exists(db_path):
+            with open(db_path, "rb") as f:
+                # Read raw binary data into a stream
+                return io.BytesIO(f.read())
+        else:
+            # Fallback stream if file is not generated yet
+            return io.BytesIO(b"No database file generated on disk yet.")

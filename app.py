@@ -25,6 +25,7 @@ if not accounts_df.empty:
     }
 
 # --- SIDEBAR RUNNING METRICS ---
+# --- SIDEBAR RUNNING METRICS ---
 st.sidebar.header("📊 Quick Farm Metrics")
 if not entries_df.empty and len(entries_df) > 0:
     cash_df = entries_df[entries_df['account_code'] == 1000]
@@ -37,6 +38,26 @@ if not entries_df.empty and len(entries_df) > 0:
 else:
     st.sidebar.metric(label="Corporate Cash Pool", value="$0.00 CAD")
     st.sidebar.metric(label="Total Owed to Family", value="$0.00 CAD")
+
+# --- INSERT BACKUP UTILITY DOWN BELOW ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("💾 System Backups")
+st.sidebar.caption("Download a safe, raw relational data snapshot of all family transactions and yard records.")
+
+try:
+    # Pull raw data binary string from disk
+    raw_db_bytes = ledger.export_raw_db_bytes()
+    timestamp = datetime.today().strftime("%Y-%m-%d")
+
+    st.sidebar.download_button(
+        label="⬇️ Download Database (.DB)",
+        data=raw_db_bytes,
+        file_name=f"gohl_farm_backup_{timestamp}.db",
+        mime="application/x-sqlite3",
+        use_container_width=True
+    )
+except Exception as e:
+    st.sidebar.error(f"Backup Error: {e}")
 
 
 # --- SECTION 1: DOUBLE-ENTRY LOGGER ---
