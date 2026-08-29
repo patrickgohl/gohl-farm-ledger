@@ -11,7 +11,14 @@ class FarmLedger:
 
     def _get_sheet_data(self, worksheet_name):
         """Helper to fetch fresh dataframe from a specific Google Sheet tab."""
-        return self.conn.read(worksheet=worksheet_name, ttl=0) # ttl=0 forces live data read
+        # 1. Pull the secure URL directly from Streamlit Secrets at runtime
+        # This keeps it 100% hidden from your public GitHub repo!
+        secure_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        
+        # 2. Explicitly pass the url variable inside the connection read handler
+        # This completely forces the engine past its internal configuration bugs
+        return self.conn.read(spreadsheet=secure_url, worksheet=worksheet_name, ttl=0)
+
 
     def _initialize_chart_of_accounts(self):
         """Seeds the standard farm chart of accounts if the sheet is empty."""
