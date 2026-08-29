@@ -196,7 +196,7 @@ with op_tab2:
 
 # TAB 3: LOCATION REGISTER
 with op_tab3:
-    col_y1, col_y2 = st.columns()
+    col_y1, col_y2 = st.columns(2)
     with col_y1:
         st.subheader("Add New Apiary Yard")
         with st.form("yard_form", clear_on_submit=True):
