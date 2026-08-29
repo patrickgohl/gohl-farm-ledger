@@ -120,15 +120,19 @@ class FarmLedger:
         )
 
     def log_inventory(self, date_str, yard_id, hives, nucs, losses, rating):
-        """Saves physical hive metrics."""
+        """Saves physical hive metrics safely with explicitly matched parameter binds."""
         self._execute_query("""
             INSERT INTO hive_inventory_logs (log_date, yard_id, hive_count, nuc_count, winter_losses, performance_rating)
             VALUES (:date, :yard_id, :hives, :nucs, :losses, :rating);
         """, {
-            "date": date_str, "yard_id": int(yard_id), "hives": int(hives),
-            "nuc_count": int(nucs), "losses": int(losses), "rating": int(rating)
+            "date": date_str, 
+            "yard_id": int(yard_id), 
+            "hives": int(hives),
+            "nucs": int(nucs),       # Fixed to match :nucs perfectly
+            "losses": int(losses),   # Fixed to match :losses perfectly
+            "rating": int(rating)
         })
-        
+
     def export_raw_db_bytes(self):
         """Reads the raw sqlite database file from disk and returns a binary byte stream for downloading."""
         import io

@@ -94,9 +94,10 @@ with st.form("transaction_form", clear_on_submit=True):
     submit_button = st.form_submit_button("Post Transaction to Ledger")
 
     if submit_button:
+        # Fixed the duplicated structural keys from the prior layout release
         legs_payload = [
             {"code": account_options[leg1_account], "debit": leg1_debit, "credit": leg1_credit, "member": member_val},
-            {"code": account_options[leg2_account], "debit": account_options[leg2_account], "debit": leg2_debit, "credit": leg2_credit, "member": member_val}
+            {"code": account_options[leg2_account], "debit": leg2_debit, "credit": leg2_credit, "member": member_val}
         ]
         try:
             ledger.log_transaction(tx_date.strftime("%Y-%m-%d"), tx_desc, legs_payload)
