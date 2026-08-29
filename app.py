@@ -91,10 +91,12 @@ tab1, tab2 = st.tabs(["📋 General Ledger Records", "👥 Shareholder Loan Bala
 
 with tab1:
     if not entries_df.empty and len(entries_df) > 0:
+        # Merge descriptions cleanly on the fly using Pandas DataFrames
         view_df = pd.merge(entries_df, accounts_df, on="account_code", how="left")
-        st.dataframe(view_df.sort_values(by="entry_id", ascending=False), use_container_width=True)
-else:
-    st.info("No transaction records found in database yet.")
+        render_cols = ["entry_id", "transaction_date", "description", "account_name", "debit", "credit", "contributor_name"]
+        st.dataframe(view_df[render_cols].sort_values(by="entry_id", ascending=False), use_container_width=True)
+    else:
+        st.info("No transaction records found in database yet.")
 
 with tab2:
     if not entries_df.empty and len(entries_df) > 0:
