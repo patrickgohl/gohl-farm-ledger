@@ -148,3 +148,11 @@ class FarmLedger:
         else:
             # Fallback stream if file is not generated yet
             return io.BytesIO(b"No database file generated on disk yet.")
+
+    def delete_journal_entry(self, entry_id):
+        """Permanently removes a specific financial journal entry by ID."""
+        self._execute_query("DELETE FROM journal_entries WHERE entry_id = :id;", {"id": int(entry_id)})
+
+    def delete_inventory_log(self, log_id):
+        """Permanently removes a specific hive inventory inspection log by ID."""
+        self._execute_query("DELETE FROM hive_inventory_logs WHERE log_id = :id;", {"id": int(log_id)})
