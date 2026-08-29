@@ -24,9 +24,9 @@ if not accounts_df.empty:
         for _, row in accounts_df.iterrows()
     }
 
-# --- SIDEBAR RUNNING METRICS ---
-# --- SIDEBAR RUNNING METRICS ---
+# --- UNIFIED SIDEBAR CONTROLLER (METRICS, BACKUPS, & ADMIN) ---
 st.sidebar.header("📊 Quick Farm Metrics")
+
 if not entries_df.empty and len(entries_df) > 0:
     cash_df = entries_df[entries_df['account_code'] == 1000]
     cash_balance = cash_df['debit'].sum() - cash_df['credit'].sum()
@@ -39,16 +39,14 @@ else:
     st.sidebar.metric(label="Corporate Cash Pool", value="$0.00 CAD")
     st.sidebar.metric(label="Total Owed to Family", value="$0.00 CAD")
 
-# --- INSERT BACKUP UTILITY DOWN BELOW ---
+# --- SYSTEM BACKUPS SNIPPET ---
 st.sidebar.markdown("---")
 st.sidebar.subheader("💾 System Backups")
-st.sidebar.caption("Download a safe, raw relational data snapshot of all family transactions and yard records.")
+st.sidebar.caption("Download a safe, raw relational data snapshot of all family records.")
 
 try:
-    # Pull raw data binary string from disk
     raw_db_bytes = ledger.export_raw_db_bytes()
     timestamp = datetime.today().strftime("%Y-%m-%d")
-
     st.sidebar.download_button(
         label="⬇️ Download Database (.DB)",
         data=raw_db_bytes,
@@ -58,6 +56,25 @@ try:
     )
 except Exception as e:
     st.sidebar.error(f"Backup Error: {e}")
+
+# --- SECURE ADMIN SYSTEM GATEKEEPER ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔒 System Administration")
+
+# Initialize a session state token to hold password verification status
+if "admin_authenticated" not in st.session_state:
+    st.session_state["admin_authenticated"] = False
+
+# Password input text box explicitly declared inside the sidebar wrapper
+admin_password_input = st.sidebar.text_input("Enter Admin Password", type="password", key="admin_pwd_box")
+
+if admin_password_input == st.secrets["admin"]["password"]:
+    st.session_state["admin_authenticated"] = True
+    st.sidebar.success("Admin access granted!")
+else:
+    st.session_state["admin_authenticated"] = False
+    if admin_password_input:
+        st.sidebar.error("Incorrect password.")
 
 
 # --- SECTION 1: DOUBLE-ENTRY LOGGER ---
@@ -253,6 +270,50 @@ if st.session_state["admin_authenticated"]:
             log_preview_df = pd.merge(df_logs, yards_df, on="yard_id", how="inner")
             
             # Create a dropdown selector listing inventory log choices formatted for clarity
+            log_options = {
+                f"Log #{row['log_id']} | {row['log_date']} - {row['yard_name']}": row['log_id']
+                for _, row in log_preview_df.iterrows()
+            }
+            selected_log_label = st.selectbox("Select Hive Field Log to Remove", options=list(log_options.keys()))
+            target_log_id = log_options[selected_log_label]
+            
+            if st.button("🚨 Permanently Delete Field Log", key="btn_del_log"):
+                ledger.delete_inventory_log(target_log_id)
+                st.success(f"Field Log Entry completely erased.")
+                st.rerun()
+        else:
+            st.info("No hive field inspection logs available to delete.")
+
+
+# --- BOTTOM OF APP.PY: ADMINISTRATIVE TOOL PANEL RENDERER ---
+if st.session_state["admin_authenticated"]:
+    st.markdown("---")
+    st.header("🛠️ Admin Data Management Tools")
+    st.caption("Permanently clear mistakes or bad entries from the farm database records.")
+    
+    adm_col1, adm_col2 = st.columns(2)
+    
+    with adm_col1:
+        st.subheader("Disposed Financial Records")
+        if not entries_df.empty and len(entries_df) > 0:
+            tx_to_delete = st.selectbox(
+                "Select Transaction ID to Remove", 
+                options=sorted(entries_df["entry_id"].unique(), reverse=True)
+            )
+            preview_tx = entries_df[entries_df["entry_id"] == tx_to_delete]
+            st.warning(f"Target Memo: '{preview_tx['description'].values}'")
+            
+            if st.button("🚨 Permanently Delete Transaction", key="btn_del_tx"):
+                ledger.delete_journal_entry(tx_to_delete)
+                st.success(f"Transaction ID {tx_to_delete} completely erased.")
+                st.rerun()
+        else:
+            st.info("No transaction records available to delete.")
+
+    with adm_col2:
+        st.subheader("Disposed Hive Inventory Logs")
+        if not df_logs.empty and len(df_logs) > 0 and not yards_df.empty:
+            log_preview_df = pd.merge(df_logs, yards_df, on="yard_id", how="inner")
             log_options = {
                 f"Log #{row['log_id']} | {row['log_date']} - {row['yard_name']}": row['log_id']
                 for _, row in log_preview_df.iterrows()
