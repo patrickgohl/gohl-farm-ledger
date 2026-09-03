@@ -7,21 +7,25 @@ class FarmLedger:
         # 1. Fetch custom key mapping array directly from secrets
         db_secrets = st.secrets["connections"]["db"]
         
-        # 2. Build a clean link string WITHOUT the password inside it
-        # This prevents the parser from breaking on your password's special characters
-        connection_url = (
-            f"postgresql+psycopg2://{db_secrets['db_user']}@"
-            f"{db_secrets['db_host']}:{int(db_secrets['db_port'])}/{db_secrets['db_name']}?sslmode=require"
+        # 2. Import SQLAlchemy's native connection parameters builder object
+        from sqlalchemy.engine import URL
+        
+        # 3. Create a structured database object passing every variable explicitly.
+        # This completely stops the engine from attempting string decoding checks!
+        object_url = URL.create(
+            drivername="postgresql+psycopg2",
+            username=db_secrets["db_user"],
+            password=db_secrets["db_pass"], # Pass raw password directly with zero encoding or stripping
+            host=db_secrets["db_host"],
+            port=int(db_secrets["db_port"]), # Force cast the port integer value
+            database=db_secrets["db_name"],
+            query={"sslmode": "require"}
         )
         
-        # 3. Securely pass the password as a separate parameter using the connect_args dictionary map
-        # This bypasses the URL connection text parser completely!
-        self.engine = create_engine(
-            connection_url, 
-            connect_args={"password": db_secrets["db_pass"]},
-            pool_pre_ping=True
-        )
+        # 4. Initialize the true native engine using the object structure mapping
+        self.engine = create_engine(object_url, pool_pre_ping=True)
         self._initialize_database_tables()
+
 
 
     def _execute_query(self, query_string, params=None):
