@@ -4,22 +4,25 @@ from sqlalchemy import create_engine, text
 
 class FarmLedger:
     def __init__(self):
-        # 1. Pull the custom key variables cleanly from secrets
+        # 1. Fetch custom key mapping array directly from secrets
         db_secrets = st.secrets["connections"]["db"]
         
-        # 2. Securely handle the special characters in your password via native Python tools
-        from urllib.parse import quote_plus
-        safe_password = quote_plus(db_secrets["db_pass"])
-        
-        # 3. Assemble the raw connection string URL natively
+        # 2. Build a clean link string WITHOUT the password inside it
+        # This prevents the parser from breaking on your password's special characters
         connection_url = (
-            f"postgresql+psycopg2://{db_secrets['db_user']}:{safe_password}@"
+            f"postgresql+psycopg2://{db_secrets['db_user']}@"
             f"{db_secrets['db_host']}:{int(db_secrets['db_port'])}/{db_secrets['db_name']}?sslmode=require"
         )
         
-        # 4. Initialize a true native SQLAlchemy engine, completely bypassing the buggy wrapper layer
-        self.engine = create_engine(connection_url, pool_pre_ping=True)
+        # 3. Securely pass the password as a separate parameter using the connect_args dictionary map
+        # This bypasses the URL connection text parser completely!
+        self.engine = create_engine(
+            connection_url, 
+            connect_args={"password": db_secrets["db_pass"]},
+            pool_pre_ping=True
+        )
         self._initialize_database_tables()
+
 
     def _execute_query(self, query_string, params=None):
         """Helper to run write/insert operations securely using a connection pool context manager."""
