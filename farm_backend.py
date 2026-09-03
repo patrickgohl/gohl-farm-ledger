@@ -5,10 +5,26 @@ from sqlalchemy import text
 
 class FarmLedger:
     def __init__(self):
-        # 1. Connect natively to the writeable database defined in your Secrets
-        self.conn = st.connection("db", type="sql")
+        # 1. Fetch parameters explicitly as a clean dictionary map
+        db_secrets = st.secrets["connections"]["db"]
+        
+        # 2. Build a raw connection string natively inside Python where 
+        # SQLAlchemy won't accidentally corrupt special character arrays
+        # (This keeps your credentials completely secure from GitHub!)
+        from urllib.parse import quote_plus
+        safe_password = quote_plus(db_secrets["password"])
+        
+        # Format the strict, authenticated URI using safe, native library variables
+        connection_url = (
+            f"postgresql+psycopg2://{db_secrets['username']}:{safe_password}@"
+            f"{db_secrets['host']}:{db_secrets['port']}/{db_secrets['database']}?sslmode=require"
+        )
+        
+        # 3. Create the writeable database client mapping
+        self.conn = st.connection("db", type="sql", url=connection_url)
         self._initialize_database_tables()
 
+        
     def _execute_query(self, query_string, params=None):
         """Helper to run write/insert operations securely."""
         with self.conn.session as session:
