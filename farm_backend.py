@@ -24,7 +24,7 @@ class FarmLedger:
             return pd.DataFrame()
 
     def _initialize_database_tables(self):
-        """Builds all operational and financial tables with clean relations."""
+        """Builds all operational and financial tables with clean, permanent PostgreSQL relations."""
         # Create Accounts Table
         self._execute_query("""
         CREATE TABLE IF NOT EXISTS accounts (
@@ -34,10 +34,10 @@ class FarmLedger:
         );
         """)
         
-        # Create Journal Entries Table
+        # Create Journal Entries Table (Using standard SERIAL for cloud auto-increment)
         self._execute_query("""
         CREATE TABLE IF NOT EXISTS journal_entries (
-            entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_id SERIAL PRIMARY KEY,
             transaction_date TEXT NOT NULL,
             description TEXT NOT NULL,
             account_code INTEGER NOT NULL,
@@ -50,7 +50,7 @@ class FarmLedger:
         # Create Yards Table
         self._execute_query("""
         CREATE TABLE IF NOT EXISTS yards (
-            yard_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            yard_id SERIAL PRIMARY KEY,
             yard_name TEXT NOT NULL UNIQUE,
             location_notes TEXT
         );
@@ -59,7 +59,7 @@ class FarmLedger:
         # Create Hive Inventory Logs Table
         self._execute_query("""
         CREATE TABLE IF NOT EXISTS hive_inventory_logs (
-            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            log_id SERIAL PRIMARY KEY,
             log_date TEXT NOT NULL,
             yard_id INTEGER NOT NULL,
             hive_count INTEGER DEFAULT 0,
@@ -70,6 +70,7 @@ class FarmLedger:
         """)
         
         self._seed_chart_of_accounts()
+
 
     def _seed_chart_of_accounts(self):
         """Seeds default Manitoba bee farm accounts if table is completely fresh."""
