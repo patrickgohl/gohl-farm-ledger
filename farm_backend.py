@@ -4,13 +4,28 @@ from sqlalchemy import create_engine, text
 
 class FarmLedger:
     def __init__(self):
-        # 1. Pull the unified connection URL straight from your encrypted secrets panel
-        connection_url = st.secrets["connections"]["db"]["url"]
+        # 1. Fetch the custom key mapping array directly from your Streamlit secrets
+        db_secrets = st.secrets["connections"]["db"]
         
-        # 2. Revert back to the direct, clean native engine initialization call!
-        # pool_pre_ping=True automatically tests the cloud connection before running queries
-        self.engine = create_engine(connection_url, pool_pre_ping=True)
+        # 2. Import SQLAlchemy's native connection parameters builder object
+        from sqlalchemy.engine import URL
+        
+        # 3. Create a structured database object passing every variable explicitly.
+        # This completely stops the engine from attempting string decoding checks!
+        object_url = URL.create(
+            drivername="postgresql+psycopg2",
+            username=db_secrets["db_user"],
+            password=db_secrets["db_pass"], 
+            host=db_secrets["db_host"],
+            port=int(db_secrets["db_port"]), 
+            database=db_secrets["db_name"],
+            query={"sslmode": "require"}
+        )
+        
+        # 4. Initialize the true native engine using the object structure mapping
+        self.engine = create_engine(object_url, pool_pre_ping=True)
         self._initialize_database_tables()
+
 
 
 
