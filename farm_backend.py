@@ -1,41 +1,39 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 
 class FarmLedger:
     def __init__(self):
-        # 1. Fetch our custom key dictionary directly from secrets
+        # 1. Pull the custom key variables cleanly from secrets
         db_secrets = st.secrets["connections"]["db"]
         
         # 2. Securely handle the special characters in your password via native Python tools
         from urllib.parse import quote_plus
         safe_password = quote_plus(db_secrets["db_pass"])
         
-        # 3. Assemble the explicit connection string URL
+        # 3. Assemble the raw connection string URL natively
         connection_url = (
             f"postgresql+psycopg2://{db_secrets['db_user']}:{safe_password}@"
             f"{db_secrets['db_host']}:{int(db_secrets['db_port'])}/{db_secrets['db_name']}?sslmode=require"
         )
         
-        # 4. Initialize the custom SQL connection client engine
-        # Passing an explicit name ('supabase_farm') tells Streamlit to ignore the default settings
-        self.conn = st.connection("supabase_farm", type="sql", url=connection_url)
+        # 4. Initialize a true native SQLAlchemy engine, completely bypassing the buggy wrapper layer
+        self.engine = create_engine(connection_url, pool_pre_ping=True)
         self._initialize_database_tables()
 
-
     def _execute_query(self, query_string, params=None):
-        """Helper to run write/insert operations securely."""
-        with self.conn.session as session:
-            session.execute(text(query_string), params or {})
-            session.commit()
+        """Helper to run write/insert operations securely using a connection pool context manager."""
+        with self.engine.begin() as conn:
+            conn.execute(text(query_string), params or {})
 
     def _get_sheet_data(self, table_name):
-        """Helper to safely fetch a table as a Pandas DataFrame."""
+        """Helper to safely fetch a table as a clean Pandas DataFrame using raw text SQL queries."""
         try:
-            return self.conn.query(f"SELECT * FROM {table_name};", ttl=0)
+            with self.engine.connect() as conn:
+                df = pd.read_sql_query(text(f"SELECT * FROM {table_name};"), conn)
+                return df
         except Exception:
-            # Return empty dataframe if table doesn't exist yet
+            # Return empty dataframe if the table doesn't exist yet
             return pd.DataFrame()
 
     def _initialize_database_tables(self):
@@ -49,7 +47,7 @@ class FarmLedger:
         );
         """)
         
-        # Create Journal Entries Table (Using standard SERIAL for cloud auto-increment)
+        # Create Journal Entries Table
         self._execute_query("""
         CREATE TABLE IF NOT EXISTS journal_entries (
             entry_id SERIAL PRIMARY KEY,
@@ -86,7 +84,6 @@ class FarmLedger:
         
         self._seed_chart_of_accounts()
 
-
     def _seed_chart_of_accounts(self):
         """Seeds default Manitoba bee farm accounts if table is completely fresh."""
         df_accounts = self._get_sheet_data("accounts")
@@ -107,7 +104,7 @@ class FarmLedger:
             ]
             for code, name, acc_type in default_accounts:
                 self._execute_query(
-                    "INSERT OR IGNORE INTO accounts VALUES (:code, :name, :type);",
+                    "INSERT INTO accounts (account_code, account_name, account_type) VALUES (:code, :name, :type) ON CONFLICT (account_code) DO NOTHING;",
                     {"code": code, "name": name, "type": acc_type}
                 )
 
@@ -131,44 +128,30 @@ class FarmLedger:
     def add_yard(self, name, notes=""):
         """Saves a new apiary yard location."""
         self._execute_query(
-            "INSERT OR IGNORE INTO yards (yard_name, location_notes) VALUES (:name, :notes);",
+            "INSERT INTO yards (yard_name, location_notes) VALUES (:name, :notes) ON CONFLICT (yard_name) DO NOTHING;",
             {"name": name, "notes": notes}
         )
 
     def log_inventory(self, date_str, yard_id, hives, nucs, losses, rating):
-        """Saves physical hive metrics safely with explicitly matched parameter binds."""
+        """Saves physical hive metrics securely with explicitly matched parameter binds."""
         self._execute_query("""
             INSERT INTO hive_inventory_logs (log_date, yard_id, hive_count, nuc_count, winter_losses, performance_rating)
             VALUES (:date, :yard_id, :hives, :nucs, :losses, :rating);
         """, {
-            "date": date_str, 
-            "yard_id": int(yard_id), 
-            "hives": int(hives),
-            "nucs": int(nucs),       # Fixed to match :nucs perfectly
-            "losses": int(losses),   # Fixed to match :losses perfectly
-            "rating": int(rating)
+            "date": date_str, "yard_id": int(yard_id), "hives": int(hives),
+            "nucs": int(nucs), "losses": int(losses), "rating": int(rating)
         })
 
-    def export_raw_db_bytes(self):
-        """Reads the raw sqlite database file from disk and returns a binary byte stream for downloading."""
-        import io
-        import os
-        
-        db_path = "farm_production.db"
-        
-        # Fallback check to ensure the file exists on the cloud server container
-        if os.path.exists(db_path):
-            with open(db_path, "rb") as f:
-                # Read raw binary data into a stream
-                return io.BytesIO(f.read())
-        else:
-            # Fallback stream if file is not generated yet
-            return io.BytesIO(b"No database file generated on disk yet.")
-
     def delete_journal_entry(self, entry_id):
-        """Permanently removes a specific financial journal entry by ID."""
         self._execute_query("DELETE FROM journal_entries WHERE entry_id = :id;", {"id": int(entry_id)})
 
     def delete_inventory_log(self, log_id):
-        """Permanently removes a specific hive inventory inspection log by ID."""
         self._execute_query("DELETE FROM hive_inventory_logs WHERE log_id = :id;", {"id": int(log_id)})
+
+    def export_raw_db_bytes(self):
+        """Compiles database records to CSV layout format since a local .db file no longer exists in a cloud environment."""
+        import io
+        csv_buffer = io.StringIO()
+        df = self._get_sheet_data("journal_entries")
+        df.to_csv(csv_buffer, index=False)
+        return io.BytesIO(csv_buffer.getvalue().encode('utf-8'))

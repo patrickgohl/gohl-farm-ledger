@@ -48,10 +48,10 @@ try:
     raw_db_bytes = ledger.export_raw_db_bytes()
     timestamp = datetime.today().strftime("%Y-%m-%d")
     st.sidebar.download_button(
-        label="⬇️ Download Database (.DB)",
+        label="⬇️ Download Ledger (.CSV)",
         data=raw_db_bytes,
-        file_name=f"gohl_farm_backup_{timestamp}.db",
-        mime="application/x-sqlite3",
+        file_name=f"gohl_ledger_backup_{timestamp}.csv",
+        mime="text/csv",
         use_container_width=True
     )
 except Exception as e:
