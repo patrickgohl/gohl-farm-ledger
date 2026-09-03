@@ -5,26 +5,25 @@ from sqlalchemy import text
 
 class FarmLedger:
     def __init__(self):
-        # 1. Fetch parameters explicitly as a clean dictionary map
+        # 1. Fetch our custom key dictionary directly from secrets
         db_secrets = st.secrets["connections"]["db"]
         
-        # 2. Build a raw connection string natively inside Python where 
-        # SQLAlchemy won't accidentally corrupt special character arrays
-        # (This keeps your credentials completely secure from GitHub!)
+        # 2. Securely handle the special characters in your password via native Python tools
         from urllib.parse import quote_plus
-        safe_password = quote_plus(db_secrets["password"])
+        safe_password = quote_plus(db_secrets["db_pass"])
         
-        # Format the strict, authenticated URI using safe, native library variables
+        # 3. Assemble the explicit connection string URL
         connection_url = (
-            f"postgresql+psycopg2://{db_secrets['username']}:{safe_password}@"
-            f"{db_secrets['host']}:{db_secrets['port']}/{db_secrets['database']}?sslmode=require"
+            f"postgresql+psycopg2://{db_secrets['db_user']}:{safe_password}@"
+            f"{db_secrets['db_host']}:{int(db_secrets['db_port'])}/{db_secrets['db_name']}?sslmode=require"
         )
         
-        # 3. Create the writeable database client mapping
-        self.conn = st.connection("db", type="sql", url=connection_url)
+        # 4. Initialize the custom SQL connection client engine
+        # Passing an explicit name ('supabase_farm') tells Streamlit to ignore the default settings
+        self.conn = st.connection("supabase_farm", type="sql", url=connection_url)
         self._initialize_database_tables()
 
-        
+
     def _execute_query(self, query_string, params=None):
         """Helper to run write/insert operations securely."""
         with self.conn.session as session:
