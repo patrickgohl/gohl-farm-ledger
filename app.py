@@ -240,40 +240,94 @@ st.header("🐝 Hive Inventory & Apiary Yard Management")
 
 op_tab1, op_tab2, op_tab3 = st.tabs(["📈 Operations Dashboard", "🚜 Log Field Data", "🗺️ Manage Apiary Yards"])
 
-# --- UPDATE THIS INSIDE SECTION 3, TAB 1 (OPERATIONS DASHBOARD) ---
+
+# --- SECTION 3, TAB 1: OPERATIONAL SNAPSHOTS & CHARTS ---
 with op_tab1:
     if not df_logs.empty and not yards_df.empty:
+        # Merge logs and yards data into a clean operational dataframe
         inventory_df = pd.merge(df_logs, yards_df, on="yard_id", how="inner")
-        inventory_df = inventory_df.sort_values(by=["log_date", "log_id"], ascending=[False, False])
         
-        latest_snapshot = inventory_df.sort_values('log_date').groupby('yard_name').last().reset_index()
-        
-        met_col1, met_col2, met_col3, met_col4 = st.columns(4)
-        with met_col1: 
-            st.metric("Total Apiary Yards", len(latest_snapshot))
-        with met_col2: 
-            st.metric("Active Production Hives", int(latest_snapshot['hive_count'].sum()))
-        with met_col3: 
-            st.metric("Nucleus Colonies (Nucs)", int(latest_snapshot['nuc_count'].sum()))
-        with met_col4: 
-            # 1. FIX: Changed visual metric label to "Hive Losses"
-            # 2. FIX: Using .get() fallback to support both 'hive_losses' and 'winter_losses' gracefully
-            loss_col = 'hive_losses' if 'hive_losses' in inventory_df.columns else 'winter_losses'
-            st.metric("Total Logged Hive Losses", int(inventory_df[loss_col].sum()))
-
-        st.subheader("Yard Distribution")
-        col_chart1, col_chart2 = st.columns(2)
-        with col_chart1: st.bar_chart(data=latest_snapshot, x="yard_name", y="hive_count")
-        with col_chart2: st.bar_chart(data=latest_snapshot, x="yard_name", y="performance_rating")
-        
-        # Clean up column displays for the historical dataframe layout view
-        display_df = inventory_df.copy()
-        if 'winter_losses' in display_df.columns:
-            display_df = display_df.rename(columns={'winter_losses': 'hive_losses'})
+        # Safe column fallback for the rename change we made earlier
+        loss_col = 'hive_losses' if 'hive_losses' in inventory_df.columns else 'winter_losses'
+        if loss_col == 'winter_losses':
+            inventory_df = inventory_df.rename(columns={'winter_losses': 'hive_losses'})
             
-        st.dataframe(display_df, use_container_width=True)
+        inventory_df = inventory_df.sort_values(by=["log_date", "log_id"], ascending=[False, False])
+        latest_snapshot = inventory_df.groupby('yard_name').first().reset_index()
+        
+        # --- Top Summary Metrics Cards ---
+        met_col1, met_col2, met_col3, met_col4 = st.columns(4)
+        with met_col1: st.metric("Total Apiary Yards", len(latest_snapshot))
+        with met_col2: st.metric("Active Production Hives", int(latest_snapshot['hive_count'].sum()))
+        with met_col3: st.metric("Nucleus Colonies (Nucs)", int(latest_snapshot['nuc_count'].sum()))
+        with met_col4: st.metric("Total Logged Hive Losses", int(inventory_df['hive_losses'].sum()))
+
+        st.markdown("---")
+        
+        # --- 📈 DYNAMIC COMPARISON GRAPHING CONTROLLER ---
+        st.subheader("📊 Yard Comparative Analysis")
+        st.caption("Compare tracking trends across multiple yards and choose a specific target metric for any selected year.")
+        
+        # Extract a clean, chronological list of available logging years
+        inventory_df['log_date'] = pd.to_datetime(inventory_df['log_date'])
+        inventory_df['Year'] = inventory_df['log_date'].dt.year
+        available_years = sorted(inventory_df['Year'].unique(), reverse=True)
+        
+        # Graph Configuration Inputs Layout Grid Split
+        ctrl_col1, ctrl_col2, ctrl_col3 = st.columns(3)
+        with ctrl_col1:
+            selected_year = st.selectbox("1. Choose Target Year", options=available_years, key="graph_year")
+        with ctrl_col2:
+            # Dropdown selector listing metrics mapped exactly to data columns
+            metric_mapping = {
+                "🏠 Production Hive Count": "hive_count",
+                "💀 Hive Losses / Mortality": "hive_losses",
+                "⭐ Yard Performance Rating (0-10)": "performance_rating"
+            }
+            selected_metric_label = st.selectbox("2. Choose Target Metric", options=list(metric_mapping.keys()), key="graph_metric")
+            target_column = metric_mapping[selected_metric_label]
+        with ctrl_col3:
+            all_available_yards = sorted(inventory_df['yard_name'].unique())
+            selected_yards = st.multiselect(
+                "3. Select Yards to Compare", 
+                options=all_available_yards, 
+                default=all_available_yards[:2] if len(all_available_yards) >= 2 else all_available_yards,
+                key="graph_yards"
+            )
+
+        # Apply user filters to dataset parameters natively in Pandas
+        filtered_df = inventory_df[
+            (inventory_df['Year'] == selected_year) & 
+            (inventory_df['yard_name'].isin(selected_yards))
+        ].copy()
+
+        if not filtered_df.empty:
+            # Pivot the dataframe structure to map dates as rows and yard tracking metrics as separate lines
+            chart_data = filtered_df.pivot_table(
+                index='log_date', 
+                columns='yard_name', 
+                values=target_column, 
+                aggfunc='last'
+            )
+            
+            # Forward-fill gaps to keep trend lines fluid if some yards were inspected on slightly different days
+            chart_data = chart_data.ffill().bfill()
+            
+            # Render the line chart
+            st.line_chart(chart_data)
+        else:
+            st.info("No matching historical logs found for this specific combination of yards and selected year.")
+
+        st.markdown("---")
+        st.subheader("📋 Historical Field Log Records")
+        
+        # Format the date column back to a clean string layout for standard display view
+        display_df = inventory_df.copy()
+        display_df['log_date'] = display_df['log_date'].dt.strftime('%Y-%m-%d')
+        st.dataframe(display_df.drop(columns=['Year']), use_container_width=True, hide_index=True)
+        
     else:
-        st.info("No field data has been logged yet.")
+        st.info("No field data has been logged yet. Head over to the 'Log Field Data' tab to enter your first apiary inspection records.")
 
 
 with op_tab2:
