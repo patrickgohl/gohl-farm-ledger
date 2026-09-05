@@ -134,19 +134,24 @@ with st.form("transaction_form", clear_on_submit=True):
 
 
 
-# --- SECTION 2: AUDIT TRAILS ---
+# --- SECTION 2: AUDIT TRAILS & FINANCIAL STATEMENTS ---
 st.header("🔍 Real-Time Ledger Audit & Analysis")
-tab1, tab2 = st.tabs(["📋 General Ledger Records", "👥 Shareholder Loan Balances"])
+tab1, tab2, tab3 = st.tabs([
+    "📋 General Ledger Records", 
+    "👥 Shareholder Loan Balances", 
+    "📊 Income Statement (P&L)"
+])
 
+# --- TAB 1: GENERAL LEDGER AUDIT RECORDS ---
 with tab1:
     if not entries_df.empty and len(entries_df) > 0:
-        # Merge descriptions cleanly on the fly using Pandas DataFrames
         view_df = pd.merge(entries_df, accounts_df, on="account_code", how="left")
         render_cols = ["entry_id", "transaction_date", "description", "account_name", "debit", "credit", "contributor_name"]
         st.dataframe(view_df[render_cols].sort_values(by="entry_id", ascending=False), use_container_width=True)
     else:
         st.info("No transaction records found in database yet.")
 
+# --- TAB 2: SHAREHOLDER LOAN BALANCE MONITOR ---
 with tab2:
     if not entries_df.empty and len(entries_df) > 0:
         loan_entries = entries_df[(entries_df['account_code'] >= 2100) & (entries_df['account_code'] <= 2199)].dropna(subset=['contributor_name'])
@@ -161,6 +166,72 @@ with tab2:
             st.info("No shareholder cash injections tracked yet.")
     else:
         st.info("No shareholder cash injections tracked yet.")
+
+# --- TAB 3: DYNAMIC INCOME STATEMENT (P&L) ---
+with tab3:
+    st.subheader("🗓️ Dynamic Farm Income Statement")
+    st.caption("Calculates operational yields, variable costs, and net farm surplus dynamically using live ledger entries.")
+
+    if not entries_df.empty and len(entries_df) > 0:
+        # Merge accounts data to get classifications mapping
+        pl_df = pd.merge(entries_df, accounts_df, on="account_code", how="inner")
+        
+        # 1. PROCESS REVENUES (4000 - 4999) -> Revenue increases with CREDITS
+        rev_entries = pl_df[(pl_df['account_code'] >= 4000) & (pl_df['account_code'] <= 4999)]
+        rev_grouped = rev_entries.groupby('account_name')['credit'].sum().reset_index()
+        rev_grouped.columns = ["Line Item", "Amount (CAD)"]
+        total_revenue = rev_grouped["Amount (CAD)"].sum()
+        
+        # 2. PROCESS EXPENSES (5000 - 5999) -> Expenses increase with DEBITS
+        exp_entries = pl_df[(pl_df['account_code'] >= 5000) & (pl_df['account_code'] <= 5999)]
+        exp_grouped = exp_entries.groupby('account_name')['debit'].sum().reset_index()
+        exp_grouped.columns = ["Line Item", "Amount (CAD)"]
+        total_expenses = exp_grouped["Amount (CAD)"].sum()
+        
+        # 3. CALCULATE BOTTOM LINE
+        net_farm_income = total_revenue - total_expenses
+        
+        # Display Top-Level Performance Summary Metrics
+        m_col1, m_col2, m_col3 = st.columns(3)
+        with m_col1:
+            st.metric("Gross Agricultural Revenue", f"${total_revenue:,.2f} CAD")
+        with m_col2:
+            st.metric("Total Operating Expenses", f"${total_expenses:,.2f} CAD", delta="- Costs", delta_color="inverse")
+        with m_col3:
+            # Color indicator handles loss vs surplus state beautifully
+            color_state = "normal" if net_farm_income >= 0 else "inverse"
+            st.metric("Net Farm Surplus / Deficit", f"${net_farm_income:,.2f} CAD", delta="Net Income", delta_color=color_state)
+            
+        st.markdown("---")
+        
+        # Detailed Statement Views Layout Grid Split
+        stmt_col1, stmt_col2 = st.columns(2)
+        
+        with stmt_col1:
+            st.markdown("### 📥 Revenue Streams Breakdown")
+            if total_revenue > 0:
+                st.dataframe(rev_grouped, use_container_width=True, hide_index=True)
+            else:
+                st.info("No revenue streams logged for this period yet.")
+                
+        with stmt_col2:
+            st.markdown("### 📤 Operating Costs Breakdown")
+            if total_expenses > 0:
+                st.dataframe(exp_grouped, use_container_width=True, hide_index=True)
+            else:
+                st.info("No variable farm expenses logged for this period yet.")
+        
+        # Visual breakdown layout helper using horizontal bar chart logic mapping
+        if total_revenue > 0 or total_expenses > 0:
+            st.markdown("---")
+            st.markdown("### 📊 Structural Overview: Revenue vs Expenses")
+            summary_viz_df = pd.DataFrame([
+                {"Metric": "Gross Revenue", "Amount (CAD)": total_revenue},
+                {"Metric": "Total Expenses", "Amount (CAD)": total_expenses}
+            ])
+            st.bar_chart(data=summary_viz_df, x="Metric", y="Amount (CAD)")
+    else:
+        st.info("Insufficient data available. Log revenue or expense entries to generate financial statements.")
 
 
 # --- SECTION 3: OPERATIONS & HIVES ---
