@@ -93,28 +93,51 @@ class FarmLedger:
         self._seed_chart_of_accounts()
 
     def _seed_chart_of_accounts(self):
-        """Seeds default Manitoba bee farm accounts if table is completely fresh."""
+        """Seeds a standard, flexible framework covering all 5 core accounting pillars."""
         df_accounts = self._get_sheet_data("accounts")
         if df_accounts.empty or len(df_accounts) == 0:
             default_accounts = [
+                # --- ASSETS (1000 - 1999) ---
                 (1000, "Cash - Corporate Checking", "Asset"),
-                (1200, "Equipment - Beekeeping Assets", "Asset"),
+                (1100, "Inventory - Honey & Hive Products", "Asset"),
+                (1200, "Property & Land Assets", "Asset"),
+                (1300, "Equipment - Beekeeping Infrastructure", "Asset"),
+                
+                # --- LIABILITIES (2000 - 2999) ---
+                (2000, "Accounts Payable / Operational Debt", "Liability"),
+                (2050, "Farm Mortgage Payable", "Liability"),
                 (2100, "Shareholder Loan - Person C", "Liability"),
                 (2101, "Shareholder Loan - Person P", "Liability"),
                 (2102, "Shareholder Loan - Person M", "Liability"),
                 (2103, "Shareholder Loan - Person H", "Liability"),
                 (2104, "Shareholder Loan - Person S", "Liability"),
-                (4000, "Revenue - Wholesale Honey", "Revenue"),
-                (4100, "Revenue - Retail Sales", "Revenue"),
-                (5000, "Expense - Sugar & Bee Feed", "Expense"),
-                (5100, "Expense - Mite & Varroa Treatments", "Expense"),
-                (5200, "Expense - Person S Stipend", "Expense")
+                
+                # --- EQUITY (3000 - 3999) ---
+                (3000, "Common Share Capital", "Equity"),
+                (3100, "Retained Earnings", "Equity"),
+                
+                # --- REVENUE (4000 - 4999) ---
+                (4000, "Revenue - Wholesale Bulk Honey", "Revenue"),
+                (4100, "Revenue - Retail / Direct Sales", "Revenue"),
+                (4200, "Revenue - Pollination Services", "Revenue"),
+                (4300, "Revenue - Livestock & Nuc Sales", "Revenue"),
+                
+                # --- EXPENSES (5000 - 5999) ---
+                (5000, "Expense - Feed, Sugar & Syrup", "Expense"),
+                (5100, "Expense - Varroa & Mite Treatments", "Expense"),
+                (5200, "Expense - Labor & Person S Salary", "Expense"),
+                (5300, "Expense - Equipment Fuel & Maintenance", "Expense"),
+                (5400, "Expense - Land Rent / Lease Costs", "Expense"),
+                (5500, "Expense - Bank Interest & Mortgage Fees", "Expense")
             ]
             for code, name, acc_type in default_accounts:
                 self._execute_query(
-                    "INSERT INTO accounts (account_code, account_name, account_type) VALUES (:code, :name, :type) ON CONFLICT (account_code) DO NOTHING;",
+                    """INSERT INTO accounts (account_code, account_name, account_type) 
+                       VALUES (:code, :name, :type) 
+                       ON CONFLICT (account_code) DO NOTHING;""",
                     {"code": code, "name": name, "type": acc_type}
                 )
+
 
     def log_transaction(self, date_str, description, legs):
         """Validates double-entry logic and saves transactions to the database."""

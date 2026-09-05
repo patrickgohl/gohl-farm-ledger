@@ -77,51 +77,61 @@ else:
         st.sidebar.error("Incorrect password.")
 
 
-# --- SECTION 1: DOUBLE-ENTRY LOGGER ---
-st.header("📝 Log Double-Entry Transaction")
-st.caption("Enforces strict corporate accounting logic. Total Debits must equal Total Credits to post successfully.")
+# --- SECTION 1: DYNAMIC DOUBLE-ENTRY LOGGER ---
+st.header("📝 Log General Ledger Transaction")
+st.caption("Select any target accounts from the Chart of Accounts to post a balanced transaction.")
 
 with st.form("transaction_form", clear_on_submit=True):
-    col1, col2 = st.columns(2)
-    with col1:
+    col_meta1, col_meta2, col_meta3 = st.columns([1, 2, 1])
+    with col_meta1:
         tx_date = st.date_input("Transaction Date", datetime.today())
-        tx_desc = st.text_input("Description / Memo", placeholder="e.g., Spring Varroa mite treatment purchase")
-    with col2:
-        tx_member = st.selectbox("Associated Family Member (Optional)", ["None", "C", "P", "M", "H", "S"])
+    with col_meta2:
+        tx_desc = st.text_input("Transaction Description / Custom Memo", placeholder="e.g., Bought sugar syrup from local cooperative")
+    with col_meta3:
+        tx_member = st.selectbox("Associated Partner (Optional)", ["None", "C", "P", "M", "H", "S"])
         member_val = None if tx_member == "None" else tx_member
 
-    st.markdown("---")
+    st.markdown("##### Entry Balancing Grid")
     
-    col_leg1_acc, col_leg1_deb, col_leg1_crd = st.columns(3)
-    with col_leg1_acc:
-        leg1_account = st.selectbox("Account 1 (Debit Target)", options=list(account_options.keys()), key="leg1")
-    with col_leg1_deb:
-        leg1_debit = st.number_input("Debit Amount ($)", min_value=0.0, step=10.0, key="l1_deb")
-    with col_leg1_crd:
-        leg1_credit = st.number_input("Credit Amount ($)", min_value=0.0, step=10.0, key="l1_crd")
+    # LEG 1: Row input for the first account
+    col_l1_acc, col_l1_deb, col_l1_crd = st.columns([2, 1, 1])
+    with col_l1_acc:
+        leg1_account = st.selectbox("Target Account 1", options=list(account_options.keys()), key="leg1_sel")
+    with col_l1_deb:
+        leg1_debit = st.number_input("Debit Amount 1 ($)", min_value=0.0, value=0.0, step=1.0, key="l1_deb")
+    with col_l1_crd:
+        leg1_credit = st.number_input("Credit Amount 1 ($)", min_value=0.0, value=0.0, step=1.0, key="l1_crd")
 
-    col_leg2_acc, col_leg2_deb, col_leg2_crd = st.columns(3)
-    with col_leg2_acc:
-        leg2_account = st.selectbox("Account 2 (Credit Target)", options=list(account_options.keys()), key="leg2")
-    with col_leg2_deb:
-        leg2_debit = st.number_input("Debit Amount ($)", min_value=0.0, step=10.0, key="l2_deb")
-    with col_leg2_crd:
-        leg2_credit = st.number_input("Credit Amount ($)", min_value=0.0, step=10.0, key="l2_crd")
+    # LEG 2: Row input for the counterbalancing account
+    col_l2_acc, col_l2_deb, col_l2_crd = st.columns([2, 1, 1])
+    with col_l2_acc:
+        leg2_account = st.selectbox("Target Account 2", options=list(account_options.keys()), key="leg2_sel")
+    with col_l2_deb:
+        leg2_debit = st.number_input("Debit Amount 2 ($)", min_value=0.0, value=0.0, step=1.0, key="l2_deb")
+    with col_l2_crd:
+        leg2_credit = st.number_input("Credit Amount 2 ($)", min_value=0.0, value=0.0, step=1.0, key="l2_crd")
 
-    submit_button = st.form_submit_button("Post Transaction to Ledger")
+    submit_button = st.form_submit_button("Post Balanced Transaction to Supabase")
 
     if submit_button:
-        # Fixed the duplicated structural keys from the prior layout release
+        # Construct parameters passing raw integer codes extracted from selection dict
         legs_payload = [
             {"code": account_options[leg1_account], "debit": leg1_debit, "credit": leg1_credit, "member": member_val},
-            {"code": account_options[leg2_account], "debit": leg2_debit, "credit": leg2_credit, "member": member_val}
+            {"code": account_options[leg2_account], "debit": account_options[leg2_account], "debit": leg2_debit, "credit": leg2_credit, "member": member_val}
         ]
+        
         try:
-            ledger.log_transaction(tx_date.strftime("%Y-%m-%d"), tx_desc, legs_payload)
-            st.success("Transaction recorded safely into your database!")
+            # Pass data down into backend validation engine
+            ledger.log_transaction(
+                date_str=tx_date.strftime("%Y-%m-%d"),
+                description=tx_desc if tx_desc else "General Journal Entry",
+                legs=legs_payload
+            )
+            st.success("Transaction posted and balanced successfully on Supabase cloud database!")
             st.rerun()
         except ValueError as err:
             st.error(f"❌ Entry Rejected: {err}")
+
 
 
 # --- SECTION 2: AUDIT TRAILS ---
