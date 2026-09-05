@@ -240,24 +240,41 @@ st.header("🐝 Hive Inventory & Apiary Yard Management")
 
 op_tab1, op_tab2, op_tab3 = st.tabs(["📈 Operations Dashboard", "🚜 Log Field Data", "🗺️ Manage Apiary Yards"])
 
+# --- UPDATE THIS INSIDE SECTION 3, TAB 1 (OPERATIONS DASHBOARD) ---
 with op_tab1:
     if not df_logs.empty and not yards_df.empty:
         inventory_df = pd.merge(df_logs, yards_df, on="yard_id", how="inner")
+        inventory_df = inventory_df.sort_values(by=["log_date", "log_id"], ascending=[False, False])
+        
         latest_snapshot = inventory_df.sort_values('log_date').groupby('yard_name').last().reset_index()
         
         met_col1, met_col2, met_col3, met_col4 = st.columns(4)
-        with met_col1: st.metric("Total Apiary Yards", len(latest_snapshot))
-        with met_col2: st.metric("Active Production Hives", int(latest_snapshot['hive_count'].sum()))
-        with met_col3: st.metric("Nucleus Colonies (Nucs)", int(latest_snapshot['nuc_count'].sum()))
-        with met_col4: st.metric("Logged Hive Losses", int(inventory_df['hive_losses'].sum()))
+        with met_col1: 
+            st.metric("Total Apiary Yards", len(latest_snapshot))
+        with met_col2: 
+            st.metric("Active Production Hives", int(latest_snapshot['hive_count'].sum()))
+        with met_col3: 
+            st.metric("Nucleus Colonies (Nucs)", int(latest_snapshot['nuc_count'].sum()))
+        with met_col4: 
+            # 1. FIX: Changed visual metric label to "Hive Losses"
+            # 2. FIX: Using .get() fallback to support both 'hive_losses' and 'winter_losses' gracefully
+            loss_col = 'hive_losses' if 'hive_losses' in inventory_df.columns else 'winter_losses'
+            st.metric("Total Logged Hive Losses", int(inventory_df[loss_col].sum()))
 
         st.subheader("Yard Distribution")
         col_chart1, col_chart2 = st.columns(2)
         with col_chart1: st.bar_chart(data=latest_snapshot, x="yard_name", y="hive_count")
         with col_chart2: st.bar_chart(data=latest_snapshot, x="yard_name", y="performance_rating")
-        st.dataframe(inventory_df, use_container_width=True)
+        
+        # Clean up column displays for the historical dataframe layout view
+        display_df = inventory_df.copy()
+        if 'winter_losses' in display_df.columns:
+            display_df = display_df.rename(columns={'winter_losses': 'hive_losses'})
+            
+        st.dataframe(display_df, use_container_width=True)
     else:
         st.info("No field data has been logged yet.")
+
 
 with op_tab2:
     if not yards_df.empty:
