@@ -117,7 +117,7 @@ with st.form("transaction_form", clear_on_submit=True):
         # Construct parameters passing raw integer codes extracted from selection dict
         legs_payload = [
             {"code": account_options[leg1_account], "debit": leg1_debit, "credit": leg1_credit, "member": member_val},
-            {"code": account_options[leg2_account], "debit": account_options[leg2_account], "debit": leg2_debit, "credit": leg2_credit, "member": member_val}
+            {"code": account_options[leg2_account], "debit": leg2_debit, "credit": leg2_credit, "member": member_val}
         ]
         
         try:
