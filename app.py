@@ -249,7 +249,7 @@ with op_tab1:
         with met_col1: st.metric("Total Apiary Yards", len(latest_snapshot))
         with met_col2: st.metric("Active Production Hives", int(latest_snapshot['hive_count'].sum()))
         with met_col3: st.metric("Nucleus Colonies (Nucs)", int(latest_snapshot['nuc_count'].sum()))
-        with met_col4: st.metric("Logged Winter Losses", int(inventory_df['winter_losses'].sum()))
+        with met_col4: st.metric("Logged Hive Losses", int(inventory_df['hive_losses'].sum()))
 
         st.subheader("Yard Distribution")
         col_chart1, col_chart2 = st.columns(2)
@@ -274,7 +274,7 @@ with op_tab2:
             col_c, col_d, col_e = st.columns(3)
             with col_c: hives = st.number_input("Active Production Hive Count", min_value=0, step=1)
             with col_d: nucs = st.number_input("Nucleus Colony (Nuc) Count", min_value=0, step=1)
-            with col_e: losses = st.number_input("Winter Losses Count", min_value=0, step=1)
+            with col_e: losses = st.number_input("Hive Losses Count", min_value=0, step=1)
                 
             submit_log = st.form_submit_button("Post Field Log to System")
             if submit_log:

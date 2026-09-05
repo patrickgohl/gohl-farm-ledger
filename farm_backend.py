@@ -85,7 +85,7 @@ class FarmLedger:
             yard_id INTEGER NOT NULL,
             hive_count INTEGER DEFAULT 0,
             nuc_count INTEGER DEFAULT 0,
-            winter_losses INTEGER DEFAULT 0,
+            hive_losses INTEGER DEFAULT 0,
             performance_rating INTEGER
         );
         """)
@@ -166,7 +166,7 @@ class FarmLedger:
     def log_inventory(self, date_str, yard_id, hives, nucs, losses, rating):
         """Saves physical hive metrics securely with explicitly matched parameter binds."""
         self._execute_query("""
-            INSERT INTO hive_inventory_logs (log_date, yard_id, hive_count, nuc_count, winter_losses, performance_rating)
+            INSERT INTO hive_inventory_logs (log_date, yard_id, hive_count, nuc_count, hive_losses, performance_rating)
             VALUES (:date, :yard_id, :hives, :nucs, :losses, :rating);
         """, {
             "date": date_str, "yard_id": int(yard_id), "hives": int(hives),
