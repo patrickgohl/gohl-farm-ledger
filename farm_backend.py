@@ -186,3 +186,41 @@ class FarmLedger:
         df = self._get_sheet_data("journal_entries")
         df.to_csv(csv_buffer, index=False)
         return io.BytesIO(csv_buffer.getvalue().encode('utf-8'))
+
+    def batch_import_inventory_csv(self, uploaded_df):
+        """Validates and appends a batch dataframe of field logs to the database."""
+        # 1. Standardize column names to prevent lowercase/uppercase mapping errors
+        uploaded_df.columns = uploaded_df.columns.str.strip().str.lower()
+        
+        required_cols = ["log_date", "yard_name", "hive_count", "nuc_count", "hive_losses", "performance_rating"]
+        missing_cols = [col for col in required_cols if col not in uploaded_df.columns]
+        if missing_cols:
+            raise ValueError(f"Missing required columns: {', '.join(missing_cols)}")
+            
+        # 2. Fetch fresh yard mapping keys from the database
+        yards_df = self._get_sheet_data("yards")
+        if yards_df.empty:
+            raise ValueError("No yards registered in the system yet. Please add apiary yards first.")
+            
+        yard_mapping = dict(zip(yards_df['yard_name'].str.strip(), yards_df['yard_id']))
+        
+        # 3. Stream through rows and insert them cleanly into Supabase
+        success_count = 0
+        for _, row in uploaded_df.iterrows():
+            clean_yard_name = str(row['yard_name']).strip()
+            
+            # Match yard name to its database ID
+            if clean_yard_name not in yard_mapping:
+                continue # Skip or handle unregistered yards gracefully
+                
+            self.log_inventory(
+                date_str=str(row['log_date']).strip(),
+                yard_id=int(yard_mapping[clean_yard_name]),
+                hives=int(row['hive_count']),
+                nucs=int(row['nuc_count']),
+                losses=int(row['hive_losses']),
+                rating=int(row['performance_rating'])
+            )
+            success_count += 1
+            
+        return success_count

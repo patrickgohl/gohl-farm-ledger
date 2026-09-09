@@ -330,9 +330,13 @@ with op_tab1:
         st.info("No field data has been logged yet. Head over to the 'Log Field Data' tab to enter your first apiary inspection records.")
 
 
+# --- SECTION 3, TAB 2: LOG NEW OPERATIONAL INSIGHTS ---
 with op_tab2:
     if not yards_df.empty:
         yard_options = {row['yard_name']: row['yard_id'] for _, row in yards_df.iterrows()}
+        
+        # Method 1: Single Row Entry Form
+        st.subheader("🚜 Option 1: Log Single Entry Form")
         with st.form("inventory_form", clear_on_submit=True):
             col_a, col_b = st.columns(2)
             with col_a:
@@ -352,8 +356,43 @@ with op_tab2:
                 ledger.log_inventory(log_date.strftime("%Y-%m-%d"), yard_options[selected_yard], hives, nucs, losses, performance)
                 st.success("Field snapshot recorded successfully!")
                 st.rerun()
+                
+        st.markdown("---")
+        
+        # Method 2: Batch CSV Uploader Drop-zone
+        st.subheader("📂 Option 2: Bulk CSV Upload Tool")
+        st.caption("Perfect for importing historical field notes directly from Excel or Google Sheets.")
+        
+        # Downloadable Template Guide Helper
+        template_df = pd.DataFrame([{
+            "log_date": "2026-08-25", "yard_name": list(yard_options.keys())[0], 
+            "hive_count": "45", "nuc_count": "10", "hive_losses": "2", "performance_rating": "8"
+        }])
+        
+        st.download_button(
+            label="📋 Download CSV Template Structure",
+            data=template_df.to_csv(index=False).encode('utf-8'),
+            file_name="gohl_field_log_template.csv",
+            mime="text/csv"
+        )
+        
+        uploaded_file = st.file_uploader("Upload your field data CSV file", type=["csv"], key="csv_uploader_input")
+        
+        if uploaded_file is not None:
+            try:
+                # Read file directly into an in-memory Pandas array
+                raw_upload_df = pd.read_csv(uploaded_file)
+                
+                if st.button("🚀 Process & Append Data to Database"):
+                    with st.spinner("Writing records securely to Supabase cloud..."):
+                        records_saved = ledger.batch_import_inventory_csv(raw_upload_df)
+                    st.success(f"Successfully processed file and appended {records_saved} inspection logs!")
+                    st.rerun()
+            except Exception as err:
+                st.error(f"❌ Upload Failed: {err}. Please ensure column headers match the template precisely.")
     else:
         st.warning("⚠️ Add an apiary yard first before logging field counts.")
+
 
 with op_tab3:
     col_y1, col_y2 = st.columns(2)
