@@ -411,46 +411,65 @@ with op_tab3:
         if not yards_df.empty: st.dataframe(yards_df, use_container_width=True)
 
 
-
 # --- BOTTOM OF APP.PY: ADMINISTRATIVE TOOL PANEL RENDERER ---
 if st.session_state["admin_authenticated"]:
     st.markdown("---")
     st.header("🛠️ Admin Data Management Tools")
-    st.caption("Permanently clear mistakes or bad entries from the farm database records.")
+    st.caption("🚨 CRITICAL WARNING: Batch operations are permanent and cannot be undone. Always download a system backup before proceeding.")
     
-    adm_col1, adm_col2 = st.columns(2)
+    adm_tab1, adm_tab2 = st.tabs(["📊 Bulk Operations by Year", "🗺️ Bulk Operations by Yard"])
     
-    with adm_col1:
-        st.subheader("Disposed Financial Records")
-        if not entries_df.empty and len(entries_df) > 0:
-            tx_to_delete = st.selectbox(
-                "Select Transaction ID to Remove", 
-                options=sorted(entries_df["entry_id"].unique(), reverse=True)
-            )
-            preview_tx = entries_df[entries_df["entry_id"] == tx_to_delete]
-            st.warning(f"Target Memo: '{preview_tx['description'].values}'")
+    # --- ADMIN TAB 1: BATCH DELETE BY CALENDAR YEAR ---
+    with adm_tab1:
+        st.subheader("🗓️ Season / Year Eraser Tools")
+        col_yr_sel, col_yr_action = st.columns(2)
+        
+        with col_yr_sel:
+            # Generate a list of available years in the database
+            all_years = [datetime.today().year]
+            if not entries_df.empty and len(entries_df) > 0:
+                entries_df['tx_date_dt'] = pd.to_datetime(entries_df['transaction_date'])
+                all_years.extend(entries_df['tx_date_dt'].dt.year.unique())
+            if not df_logs.empty and len(df_logs) > 0:
+                df_logs['log_date_dt'] = pd.to_datetime(df_logs['log_date'])
+                all_years.extend(df_logs['log_date_dt'].dt.year.unique())
+                
+            unique_years = sorted(list(set(all_years)), reverse=True)
+            target_batch_year = st.selectbox("Select Target Season Year to Purge", options=unique_years, key="batch_yr_select")
             
-            if st.button("🚨 Permanently Delete Transaction", key="btn_del_tx"):
-                ledger.delete_journal_entry(tx_to_delete)
-                st.success(f"Transaction ID {tx_to_delete} completely erased.")
+        with col_yr_action:
+            st.markdown(f"**Destruction Matrix for Year: {target_batch_year}**")
+            
+            # Action 1: Delete all financial ledger rows for that year
+            if st.button(f"💥 Wipe ALL {target_batch_year} Financial Ledger Entries", key="del_tx_yr"):
+                ledger.batch_delete_transactions_by_year(target_batch_year)
+                st.success(f"All financial entries for the year {target_batch_year} have been permanently deleted.")
                 st.rerun()
-        else:
-            st.info("No transaction records available to delete.")
+                
+            # Action 2: Delete all hive inspection logs for that year
+            if st.button(f"💥 Wipe ALL {target_batch_year} Hive Inventory Field Logs", key="del_log_yr"):
+                ledger.batch_delete_inventory_by_year(target_batch_year)
+                st.success(f"All hive inventory logs for the year {target_batch_year} have been permanently deleted.")
+                st.rerun()
 
-    with adm_col2:
-        st.subheader("Disposed Hive Inventory Logs")
-        if not df_logs.empty and len(df_logs) > 0 and not yards_df.empty:
-            log_preview_df = pd.merge(df_logs, yards_df, on="yard_id", how="inner")
-            log_options = {
-                f"Log #{row['log_id']} | {row['log_date']} - {row['yard_name']}": row['log_id']
-                for _, row in log_preview_df.iterrows()
-            }
-            selected_log_label = st.selectbox("Select Hive Field Log to Remove", options=list(log_options.keys()))
-            target_log_id = log_options[selected_log_label]
+    # --- ADMIN TAB 2: BATCH DELETE BY APIARY YARD LOCATION ---
+    with adm_tab2:
+        st.subheader("🗺️ Yard Clearing Tool")
+        if not yards_df.empty:
+            yard_id_options = {row['yard_name']: row['yard_id'] for _, row in yards_df.iterrows()}
             
-            if st.button("🚨 Permanently Delete Field Log", key="btn_del_log"):
-                ledger.delete_inventory_log(target_log_id)
-                st.success(f"Field Log Entry completely erased.")
-                st.rerun()
+            col_yd_sel, col_yd_action = st.columns(2)
+            with col_yd_sel:
+                target_batch_yard = st.selectbox("Select Target Apiary Yard to Clear", options=list(yard_id_options.keys()), key="batch_yd_select")
+                target_yard_id = yard_id_options[target_batch_yard]
+            
+            with col_yd_action:
+                st.markdown(f"**Destruction Matrix for Yard: {target_batch_yard}**")
+                st.caption("This deletes all hive history snapshots linked to this location. The yard itself will remain registered.")
+                
+                if st.button(f"💥 Clear All Field Snapshots for '{target_batch_yard}'", key="del_yd_logs"):
+                    ledger.batch_delete_inventory_by_yard(target_yard_id)
+                    st.success(f"All inventory history for yard '{target_batch_yard}' has been permanently wiped.")
+                    st.rerun()
         else:
-            st.info("No hive field inspection logs available to delete.")
+            st.info("No yards registered in the system database.")

@@ -224,3 +224,18 @@ class FarmLedger:
             success_count += 1
             
         return success_count
+
+    def batch_delete_inventory_by_yard(self, yard_id):
+        """Removes ALL hive inventory inspection records associated with a specific yard."""
+        self._execute_query("DELETE FROM hive_inventory_logs WHERE yard_id = :id;", {"id": int(yard_id)})
+
+    def batch_delete_inventory_by_year(self, year_int):
+        """Removes ALL hive inventory inspection records posted during a specific calendar year."""
+        # Using string matching rules to parse the text-formatted log_date column safely
+        year_match = f"{year_int}%"
+        self._execute_query("DELETE FROM hive_inventory_logs WHERE log_date LIKE :year_match;", {"year_match": year_match})
+
+    def batch_delete_transactions_by_year(self, year_int):
+        """Removes ALL financial journal transactions posted during a specific calendar year."""
+        year_match = f"{year_int}%"
+        self._execute_query("DELETE FROM journal_entries WHERE transaction_date LIKE :year_match;", {"year_match": year_match})
